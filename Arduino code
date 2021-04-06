@@ -1,0 +1,211 @@
+#include <LiquidCrystal.h>
+
+// Create an LCD object. Parameters: (RS, E, D4, D5, D6, D7):
+LiquidCrystal lcd = LiquidCrystal(7,6,5,4,3,2);
+
+const int trigger = 11;
+const int echo = 12;
+const int buttonPin1 = 8;
+const int buttonPin2 = 9;
+const int buttonPin3 = 10;
+
+int buttonState1 = 0;
+int buttonState2 = 0;
+int buttonState3 = 0;
+
+int lastButtonState1 = 0;
+int lastButtonState2 = 0;
+int lastButtonState3 = 0;
+
+int counter1 = 0;
+int counter2 = 0;
+int counter3 = 0;
+
+long time_taken;
+int dist, distance;
+
+void setup() {
+ Serial.begin(9600);
+
+ pinMode(trigger, OUTPUT);
+ pinMode(echo, INPUT);
+ pinMode(buttonPin1, INPUT);
+ pinMode(buttonPin2, INPUT);
+ pinMode(buttonPin3, INPUT);
+
+ // Specify the LCD's number of columns and rows. Change to (20, 4) for a 20x4 LCD:
+ lcd.begin(16, 2);
+}
+
+void calculate_distance(int trigger, int echo) 
+{
+  digitalWrite(trigger, LOW);
+  delay(10);
+  digitalWrite(trigger, HIGH);
+  delay(10);
+  digitalWrite(trigger, LOW);
+  
+  time_taken = pulseIn(echo, HIGH);
+  dist= (time_taken/29)/2;  // (in centimeter) this is a formula get from the internet. 
+  //the basic idea is that we take the time the wave travels and multiple with the speed of sound (or divide by 29), 
+  //then divide by 2 because the wave travels to and from the sensor.
+}
+
+void loop(){
+ // calculate the distance 
+  calculate_distance(trigger,echo);
+  distance = dist;
+
+  //button number 1 is to activate playback mode.
+  buttonState1 = digitalRead(buttonPin1);
+  if (buttonState1 != lastButtonState1) {
+    if (buttonState1 == HIGH) {
+      counter1 += 1;
+      Serial.println(counter1);
+    }
+    delay(50);
+  }
+  lastButtonState1 = buttonState1;
+
+  if (counter1 == 1){
+    Serial.println("Playback control mode on.");
+    // Set the cursor on the third column and the first row, counting starts at 0:
+    lcd.setCursor(2, 0);
+  // Print the string 'Playback mode:':
+    lcd.print("Playback Mode:");
+  // Set the cursor on the third column and the second row:
+    lcd.setCursor(2, 1);
+  // Print the string 'ON':
+    lcd.print("ON");
+    counter1 = 2;
+    counter2 = 0; //turn off the other 2 buttons
+    counter3 = 0;
+  }
+  
+  if (counter1 == 2){
+    if ((distance >10) && (distance <20)){
+      //if your hand is in the range between 10cm and 20cm from the sensor, play/pause will be written into Serial
+      lcd.clear();
+      Serial.println("Play/Pause");
+      lcd.print("Play/Pause"); 
+      delay(800);
+      lcd.clear();
+      }
+  }
+  else if (counter1 == 3){
+    Serial.println("Playback control mode off.");
+    lcd.setCursor(2,0);
+    lcd.print("Playback Mode:");
+    lcd.setCursor(2,1);
+    lcd.print("OFF");
+    delay(1000); 
+    lcd.clear();
+    counter1 = 0;
+  }
+
+  //button number 2 is to activate volume mode
+  buttonState2 = digitalRead(buttonPin2);
+  if (buttonState2 != lastButtonState2) {
+    if (buttonState2 == HIGH) {
+      counter2 += 1;
+      Serial.println(counter2);
+    }
+    delay(50);
+  }
+  lastButtonState2 = buttonState2;
+
+  if (counter2 == 1) {
+    Serial.println("Volume control mode on.");
+    lcd.setCursor(2,0);
+    lcd.print("Volume Mode:");
+    lcd.setCursor(2,1);
+    lcd.print("ON");
+    counter2 = 2;
+    counter1 = 0;
+    counter3 = 0;
+  }
+
+  if (counter2 == 2) {
+    if (distance>=2 && distance<=16){
+      lcd.clear();
+      /*if your hand is in the range between 2cm and 16cm, 
+      the volume keeps turning down until your hand is out of range.*/
+      Serial.println("Volume Down");
+      lcd.print("Volume Down");
+      delay(300);
+      lcd.clear();
+    }
+    if (distance>16 && distance <=32) {
+      lcd.clear();
+      /*if your hand is in the range between 16cm and 32cm,
+      the volume keeps turning up until your hand is out of range.*/
+      Serial.println("Volume Up");
+      lcd.print("Volume Up");
+      delay(300);  
+      lcd.clear();
+    }
+  }
+  else if (counter2 == 3){
+    Serial.println("Volume control mode off.");
+    lcd.setCursor(2,0);
+    lcd.print("Volume Mode:");
+    lcd.setCursor(2,1);
+    lcd.print("OFF");
+    delay(1000); 
+    lcd.clear();
+    counter2 = 0;
+  }
+
+//button number 3 is to control the next/prev track mode
+  buttonState3 = digitalRead(buttonPin3);
+  if (buttonState3 != lastButtonState3) {
+    if (buttonState3 == HIGH) {
+      counter3 += 1;
+      Serial.println(counter3);
+    }
+    delay(50);
+  }
+  lastButtonState3 = buttonState3;
+
+  if (counter3 == 1) {
+    Serial.println("Track control mode on.");
+    lcd.setCursor(2,0);
+    lcd.print("Choose Track:");
+    lcd.setCursor(2,1);
+    lcd.print("ON");
+    counter3 = 2;
+    counter1 = 0;
+    counter2 = 0;
+  }
+
+  if (counter3 == 2) {
+    if (distance>=2 && distance<=16){
+      lcd.clear();
+      /*if your hand is in the range between 2cm and 16cm, 
+      it will return to the prev track until your hand is out of range.*/
+      Serial.println("Prev Track");
+      lcd.print("Prev Track");
+      delay(800);
+      lcd.clear();
+    }
+    if (distance>16 && distance <=32) {
+      lcd.clear();
+      /*if your hand is in the range between 16cm and 32cm,
+      it will skip to the next track until your hand is out of range.*/
+      Serial.println("Next Track");
+      lcd.print("Next Track");
+      delay(800);  
+      lcd.clear();
+    }
+  }
+  else if (counter3 == 3){
+    Serial.println("Track control mode off.");
+    lcd.setCursor(2,0);
+    lcd.print("Choose Track:");
+    lcd.setCursor(2,1);
+    lcd.print("OFF");
+    delay(1000);
+    lcd.clear();
+    counter3 = 0;
+  }
+}
