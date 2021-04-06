@@ -1,0 +1,36 @@
+import serial #Serial imported for Serial communication
+import time #Required to use delay functions
+import pyautogui
+
+check = False
+
+while check != True:
+    try:
+        port = input('What is your port? (for example: com5)\n')
+        ArduinoSerial = serial.Serial(str(port),9600) 
+        time.sleep(2)  
+        check = True 
+    except:
+        print('Try again')
+        check = False
+
+
+while 1:
+    incoming = str(ArduinoSerial.readline()) #read the serial data and print it as line
+    print(incoming)
+    if 'Play/Pause' in incoming:
+        pyautogui.press('playpause')
+    
+    if 'Volume Up' in incoming:
+        pyautogui.press('volumeup')
+
+    if 'Volume Down' in incoming: 
+        pyautogui.press('volumedown')
+    
+    if 'Next Track' in incoming:
+        pyautogui.press('nexttrack')
+
+    if 'Prev Track' in incoming:
+        pyautogui.press('prevtrack')
+
+    incoming = ''   
