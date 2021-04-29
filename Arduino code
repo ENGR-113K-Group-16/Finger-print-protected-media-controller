@@ -44,6 +44,7 @@ int counter3 = 0;
 
 long time_taken;
 int dist, distance;
+millisDelay ledDelay;
 
 void setup() {
  Serial.begin(9600);
@@ -137,6 +138,7 @@ void loop()                     // run over and over again
   delay(2000);
   lcd.clear();
   fingerprintCheck = 2;
+  ledDelay.start(40000);
  }
  
  else if (fingerprintCheck == 2) {
@@ -299,6 +301,15 @@ void loop()                     // run over and over again
  else if (fingerprintCheck == 3) {
   Serial.println("Good bye");
   lcd.print("Device locked");
+  delay(1000);
+  lcd.clear();
+  fingerprintCheck = 0;
+ }
+ else if (ledDelay.justFinished()) {
+  /*checks to see if the timer is finished so
+   * that the access is revoked */
+  Serial.printIn("User times out, good bye");
+  lcd.print("User timed out");
   delay(1000);
   lcd.clear();
   fingerprintCheck = 0;
