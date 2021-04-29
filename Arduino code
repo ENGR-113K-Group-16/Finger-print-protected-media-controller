@@ -1,7 +1,28 @@
 #include <LiquidCrystal.h>
+#include <Adafruit_Fingerprint.h>
 
 // Create an LCD object. Parameters: (RS, E, D4, D5, D6, D7):
 LiquidCrystal lcd = LiquidCrystal(7,6,5,4,3,2);
+
+#if (defined(__AVR__) || defined(ESP8266)) && !defined(__AVR_ATmega2560__)
+// For UNO and others without hardware serial, we must use software serial...
+// pin #A0 is IN from sensor (ORANGE wire)
+// pin #A1 is OUT from arduino  (WHITE wire)
+// Set up the serial port to use softwareserial..
+SoftwareSerial mySerial(A0, A1);
+
+#else
+// On Leonardo/M0/etc, others with hardware serial, use hardware serial!
+// #0 is green wire, #1 is white
+#define mySerial Serial1
+
+#endif
+
+
+Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
+
+int fingerprintID = 0;
+int fingerprintCheck = 0;
 
 const int trigger = 11;
 const int echo = 12;
@@ -35,7 +56,38 @@ void setup() {
 
  // Specify the LCD's number of columns and rows. Change to (20, 4) for a 20x4 LCD:
  lcd.begin(16, 2);
+
+ while (!Serial);  // For Yun/Leo/Micro/Zero/...
+  delay(100);
+  Serial.println("\n\nAdafruit finger detect test");
+
+  // set the data rate for the sensor serial port
+  finger.begin(57600);
+  delay(5);
+  if (finger.verifyPassword()) {
+    Serial.println("Found fingerprint sensor!");
+  } else {
+    Serial.println("Did not find fingerprint sensor :(");
+    while (1) { delay(1); }
+  }
+
+  finger.getTemplateCount();
+
+  if (finger.templateCount == 0) {
+    lcd.print("No fingerprint");
+    lcd.setCursor(2,1);
+    lcd.print("template found");
+    Serial.print("Sensor doesn't contain any fingerprint data. Please run the 'enroll' example.");
+  }
+  else {
+    lcd.print("Waiting for");
+    lcd.setCursor(2,1);
+    lcd.print("valid finger...");
+    Serial.println("Waiting for valid finger...");
+      Serial.print("Sensor contains "); Serial.print(finger.templateCount); Serial.println(" templates");
+  }
 }
+
 
 void calculate_distance(int trigger, int echo) 
 {
@@ -51,8 +103,43 @@ void calculate_distance(int trigger, int echo)
   //then divide by 2 because the wave travels to and from the sensor.
 }
 
-void loop(){
- // calculate the distance 
+//get fingerprint status function
+int getFingerprintID() {
+  uint8_t p = finger.getImage();
+  if (p != FINGERPRINT_OK)  return -1;
+
+  p = finger.image2Tz();
+  if (p != FINGERPRINT_OK)  return -1;
+
+  p = finger.fingerFastSearch();
+  if (p != FINGERPRINT_OK)  return -1;
+  
+  // found a match!
+  Serial.print("Found ID #"); 
+  Serial.print(finger.fingerID); 
+  Serial.print(" with confidence of "); 
+  Serial.println(finger.confidence);
+  return finger.fingerID; 
+}
+
+void loop()                     // run over and over again
+{
+ fingerprintID = getFingerprintID();
+ delay(50);  //don't need to run this at full speed.
+ if (fingerprintID != -1) {
+  fingerprintCheck += 1;
+ }
+
+ if (fingerprintCheck == 1) {
+  lcd.clear();
+  Serial.println("Hello");
+  lcd.print("Device unlocked");
+  delay(2000);
+  lcd.clear();
+  fingerprintCheck = 2;
+ }
+ 
+ else if (fingerprintCheck == 2) {
   calculate_distance(trigger,echo);
   distance = dist;
 
@@ -126,7 +213,7 @@ void loop(){
   }
 
   if (counter2 == 2) {
-    if (distance>=2 && distance<=16){
+    if (distance>=2 && distance<=11){
       lcd.clear();
       /*if your hand is in the range between 2cm and 16cm, 
       the volume keeps turning down until your hand is out of range.*/
@@ -135,7 +222,7 @@ void loop(){
       delay(300);
       lcd.clear();
     }
-    if (distance>16 && distance <=32) {
+    if (distance>11 && distance <=22) {
       lcd.clear();
       /*if your hand is in the range between 16cm and 32cm,
       the volume keeps turning up until your hand is out of range.*/
@@ -179,7 +266,7 @@ void loop(){
   }
 
   if (counter3 == 2) {
-    if (distance>=2 && distance<=16){
+    if (distance>=2 && distance<=11){
       lcd.clear();
       /*if your hand is in the range between 2cm and 16cm, 
       it will return to the prev track until your hand is out of range.*/
@@ -188,7 +275,7 @@ void loop(){
       delay(800);
       lcd.clear();
     }
-    if (distance>16 && distance <=32) {
+    if (distance>11 && distance <=227trtrrtr) {
       lcd.clear();
       /*if your hand is in the range between 16cm and 32cm,
       it will skip to the next track until your hand is out of range.*/
@@ -208,4 +295,12 @@ void loop(){
     lcd.clear();
     counter3 = 0;
   }
+ }
+ else if (fingerprintCheck == 3) {
+  Serial.println("Good bye");
+  lcd.print("Device locked");
+  delay(1000);
+  lcd.clear();
+  fingerprintCheck = 0;
+ }
 }
