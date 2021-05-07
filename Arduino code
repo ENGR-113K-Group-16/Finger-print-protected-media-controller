@@ -1,22 +1,19 @@
 #include <LiquidCrystal.h>
 #include <Adafruit_Fingerprint.h>
+#include <IRremote.h>
 
 // Create an LCD object. Parameters: (RS, E, D4, D5, D6, D7):
-LiquidCrystal lcd = LiquidCrystal(7,6,5,4,3,2);
+LiquidCrystal lcd = LiquidCrystal(8,9,10,11,12,13);
 
-#if (defined(__AVR__) || defined(ESP8266)) && !defined(__AVR_ATmega2560__)
-// For UNO and others without hardware serial, we must use software serial...
-// pin #A0 is IN from sensor (ORANGE wire)
-// pin #A1 is OUT from arduino  (WHITE wire)
+
+// pin #4 is IN from sensor (ORANGE wire)
+// pin #3 is OUT from arduino  (WHITE wire)
 // Set up the serial port to use softwareserial..
-SoftwareSerial mySerial(A0, A1);
+SoftwareSerial mySerial(4,3);
 
-#else
-// On Leonardo/M0/etc, others with hardware serial, use hardware serial!
-// #0 is green wire, #1 is white
-#define mySerial Serial1
-
-#endif
+IRrecv irrecv(5);
+decode_results results;
+unsigned long key_value = 0;
 
 
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
@@ -24,39 +21,23 @@ Adafruit_Fingerprint finger = Adafruit_Fingerprint(&mySerial);
 int fingerprintID = 0;
 int fingerprintCheck = 0;
 
-const int trigger = 11;
-const int echo = 12;
-const int buttonPin1 = 8;
-const int buttonPin2 = 9;
-const int buttonPin3 = 10;
-
-int buttonState1 = 0;
-int buttonState2 = 0;
-int buttonState3 = 0;
-
-int lastButtonState1 = 0;
-int lastButtonState2 = 0;
-int lastButtonState3 = 0;
+const int trigger = 6;
+const int echo = 7;
 
 int counter1 = 0;
-int counter2 = 0;
-int counter3 = 0;
 
 long time_taken;
 int dist, distance;
-millisDelay ledDelay;
 
 void setup() {
  Serial.begin(9600);
 
  pinMode(trigger, OUTPUT);
  pinMode(echo, INPUT);
- pinMode(buttonPin1, INPUT);
- pinMode(buttonPin2, INPUT);
- pinMode(buttonPin3, INPUT);
-
  // Specify the LCD's number of columns and rows. Change to (20, 4) for a 20x4 LCD:
  lcd.begin(16, 2);
+
+ irrecv.enableIRIn();
 
  while (!Serial);  // For Yun/Leo/Micro/Zero/...
   delay(100);
@@ -131,6 +112,7 @@ void loop()                     // run over and over again
   fingerprintCheck += 1;
  }
 
+ // print out hello message on the lcd
  if (fingerprintCheck == 1) {
   lcd.clear();
   Serial.println("Hello");
@@ -138,23 +120,13 @@ void loop()                     // run over and over again
   delay(2000);
   lcd.clear();
   fingerprintCheck = 2;
-  ledDelay.start(40000);
  }
- 
+
+
+ // enabling other functions
  else if (fingerprintCheck == 2) {
   calculate_distance(trigger,echo);
   distance = dist;
-
-  //button number 1 is to activate playback mode.
-  buttonState1 = digitalRead(buttonPin1);
-  if (buttonState1 != lastButtonState1) {
-    if (buttonState1 == HIGH) {
-      counter1 += 1;
-      Serial.println(counter1);
-    }
-    delay(50);
-  }
-  lastButtonState1 = buttonState1;
 
   if (counter1 == 1){
     Serial.println("Playback control mode on.");
@@ -167,17 +139,15 @@ void loop()                     // run over and over again
   // Print the string 'ON':
     lcd.print("ON");
     counter1 = 2;
-    counter2 = 0; //turn off the other 2 buttons
-    counter3 = 0;
   }
   
   if (counter1 == 2){
-    if ((distance >10) && (distance <20)){
-      //if your hand is in the range between 10cm and 20cm from the sensor, play/pause will be written into Serial
+    if ((distance >2) && (distance <20)){
+      //if your hand is in the range between 2cm and 20cm from the sensor, play/pause will be written into Serial
       lcd.clear();
       Serial.println("Play/Pause");
       lcd.print("Play/Pause"); 
-      delay(800);
+      delay(1000);
       lcd.clear();
       }
   }
@@ -192,124 +162,104 @@ void loop()                     // run over and over again
     counter1 = 0;
   }
 
-  //button number 2 is to activate volume mode
-  buttonState2 = digitalRead(buttonPin2);
-  if (buttonState2 != lastButtonState2) {
-    if (buttonState2 == HIGH) {
-      counter2 += 1;
-      Serial.println(counter2);
-    }
-    delay(50);
-  }
-  lastButtonState2 = buttonState2;
+  // read the input of the remote controller
+  if (irrecv.decode(&results)){
 
-  if (counter2 == 1) {
-    Serial.println("Volume control mode on.");
-    lcd.setCursor(2,0);
-    lcd.print("Volume Mode:");
-    lcd.setCursor(2,1);
-    lcd.print("ON");
-    counter2 = 2;
-    counter1 = 0;
-    counter3 = 0;
-  }
-
-  if (counter2 == 2) {
-    if (distance>=2 && distance<=11){
-      lcd.clear();
-      /*if your hand is in the range between 2cm and 16cm, 
-      the volume keeps turning down until your hand is out of range.*/
-      Serial.println("Volume Down");
-      lcd.print("Volume Down");
-      delay(300);
-      lcd.clear();
-    }
-    if (distance>11 && distance <=22) {
-      lcd.clear();
-      /*if your hand is in the range between 16cm and 32cm,
-      the volume keeps turning up until your hand is out of range.*/
-      Serial.println("Volume Up");
-      lcd.print("Volume Up");
-      delay(300);  
-      lcd.clear();
-    }
-  }
-  else if (counter2 == 3){
-    Serial.println("Volume control mode off.");
-    lcd.setCursor(2,0);
-    lcd.print("Volume Mode:");
-    lcd.setCursor(2,1);
-    lcd.print("OFF");
-    delay(1000); 
-    lcd.clear();
-    counter2 = 0;
-  }
-
-//button number 3 is to control the next/prev track mode
-  buttonState3 = digitalRead(buttonPin3);
-  if (buttonState3 != lastButtonState3) {
-    if (buttonState3 == HIGH) {
-      counter3 += 1;
-      Serial.println(counter3);
-    }
-    delay(50);
-  }
-  lastButtonState3 = buttonState3;
-
-  if (counter3 == 1) {
-    Serial.println("Track control mode on.");
-    lcd.setCursor(2,0);
-    lcd.print("Choose Track:");
-    lcd.setCursor(2,1);
-    lcd.print("ON");
-    counter3 = 2;
-    counter1 = 0;
-    counter2 = 0;
-  }
-
-  if (counter3 == 2) {
-    if (distance>=2 && distance<=11){
-      lcd.clear();
-      /*if your hand is in the range between 2cm and 16cm, 
-      it will return to the prev track until your hand is out of range.*/
-      Serial.println("Prev Track");
-      lcd.print("Prev Track");
-      delay(800);
-      lcd.clear();
-    }
-    if (distance>11 && distance <=227trtrrtr) {
-      lcd.clear();
-      /*if your hand is in the range between 16cm and 32cm,
-      it will skip to the next track until your hand is out of range.*/
-      Serial.println("Next Track");
-      lcd.print("Next Track");
-      delay(800);  
-      lcd.clear();
-    }
-  }
-  else if (counter3 == 3){
-    Serial.println("Track control mode off.");
-    lcd.setCursor(2,0);
-    lcd.print("Choose Track:");
-    lcd.setCursor(2,1);
-    lcd.print("OFF");
-    delay(1000);
-    lcd.clear();
-    counter3 = 0;
+        if (results.value == 0xFFA25D){
+          counter1 += 1;
+        }
+ 
+        if (results.value == 0XFFFFFFFF)
+        results.value = key_value;
+        lcd.setCursor(0, 0);
+        lcd.clear();
+        
+        switch(results.value){
+          case 0xFF629D:
+          lcd.print("Volume up");
+          Serial.println("Volume Up");
+          delay(400);
+          lcd.clear();
+          break;
+          case 0xFFE21D:
+          lcd.print("CH+");
+          break;
+          case 0xFF22DD:
+          lcd.print("Previous");
+          Serial.println("Prev Track");
+          delay(400);
+          lcd.clear();
+          break;
+          case 0xFF02FD:
+          Serial.println("Play/Pause");
+          lcd.print("Play/Pause");
+          delay(1000);
+          lcd.clear();
+          break ;  
+          case 0xFFC23D:
+          lcd.print("Next");
+          Serial.println("Next Track");
+          delay(400);
+          lcd.clear();
+          break ;               
+          case 0xFFE01F:
+          lcd.print("");
+          break ;  
+          case 0xFFA857:
+          lcd.print("Volume down");
+          Serial.println("Volume Down");
+          delay(400);
+          lcd.clear();
+          break ;  
+          case 0xFF906F:
+          lcd.print("EQ");
+          break ;  
+          case 0xFF6897:
+          lcd.print("0");
+          break ;  
+          case 0xFF9867:
+          lcd.print("100+");
+          break ;
+          case 0xFFB04F:
+          lcd.print("200+");
+          break ;
+          case 0xFF30CF:
+          lcd.print("1");
+          break ;
+          case 0xFF18E7:
+          lcd.print("2");
+          break ;
+          case 0xFF7A85:
+          lcd.print("3");
+          break ;
+          case 0xFF10EF:
+          lcd.print("4");
+          break ;
+          case 0xFF38C7:
+          lcd.print("5");
+          break ;
+          case 0xFF5AA5:
+          lcd.print("6");
+          break ;
+          case 0xFF42BD:
+          lcd.print("7");
+          break ;
+          case 0xFF4AB5:
+          lcd.print("8");
+          break ;
+          case 0xFF52AD:
+          lcd.print("9");
+          break ;                   
+        }
+        key_value = results.value;
+        irrecv.resume(); 
   }
  }
+
+ // print out goodbye message on the lcd
  else if (fingerprintCheck == 3) {
   Serial.println("Good bye");
   lcd.print("Device locked");
-  delay(1000);
-  lcd.clear();
-  fingerprintCheck = 0;
- }
- else if (ledDelay.justFinished()) {
-  /*checks to see if the timer is finished so
-   * that the access is revoked */
-  Serial.printIn("User times out, good bye");
-  lcd.print("User timed out");
   delay(1000);
   lcd.clear();
   fingerprintCheck = 0;
