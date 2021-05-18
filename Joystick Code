@@ -1,0 +1,66 @@
+
+#define joyX A3
+#define joyY A2
+const int jButton = 7;
+int volume = 0, oldVolume = 0, i = 0;
+bool joyReleased[3] = { true, true, true };
+float xValue, yValue;
+long xVol;
+
+
+void setup() {
+  // put your setup code here, to run once:
+  pinMode(jButton, INPUT);
+  Serial.begin(9600);
+}
+
+void loop() {
+  delay(50);
+  // put your main code here, to run repeatedly:
+  xValue = floor((analogRead(joyX)-500)/100);
+  yValue = floor((analogRead(joyY)-500)/100);
+  if( xValue > 0 && xVol <= millis()-400/xValue ) {
+    Serial.println(150+int(xValue)); //change the python code to receive '15' as the case for volume up
+    xVol = millis();
+  } else if( xValue < 0 && xVol <= millis()+400/xValue ) {
+    Serial.println(140-int(xValue)); //change the python code to receive '14' as the case for volume down
+    xVol = millis();
+  }
+
+  for(i=0 ; i<2 ; i++) {
+    if(yValue*pow(-1,i) > 0 && joyReleased[i]) {
+      joyReleased[i] = false;
+    } else if(yValue*pow(-1,i) == 0 && joyReleased[i] == false) {
+      joyReleased[i] = true;
+      if(i == 0) Serial.println("Next Track");
+      if(i == 1) Serial.println("Prev Track");
+    }
+  }
+  /* mine broke so just uncomment this
+  if(not digitalRead(jButton) && joyReleased[2]) {
+    joyReleased[2] = false;
+  } else if(not digitalRead(jButton) && joyReleased[2] == false) {
+    joyReleased[2] = true;
+    Serial.println("playpause"); 
+  } 
+  */
+}
+
+/*
+void changeVolume(){
+if (volume != oldVolume) {
+    if(volume > oldVolume){
+      //delay(100);
+      Consumer.write(MEDIA_VOLUME_UP);
+      actualVolume = actualVolume + 2;
+      oldVolume = volume; 
+    }
+    else{
+      //delay(100);
+      Consumer.write(MEDIA_VOLUME_DOWN);
+      actualVolume = actualVolume - 2;
+      oldVolume = volume; 
+    }
+  }
+}
+*/
