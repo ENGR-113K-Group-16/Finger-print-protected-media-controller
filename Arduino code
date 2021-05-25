@@ -29,16 +29,27 @@ int counter1 = 0;
 long time_taken;
 int dist, distance;
 
+#define joyX A3
+#define joyY A2
+const int jButton = 2;
+int volume = 0, oldVolume = 0, i = 0;
+bool joyReleased[3] = { true, true, true };
+float xValue, yValue;
+long xVol;
+
 void setup() {
  Serial.begin(9600);
-
+ 
+ // Sensor set up
  pinMode(trigger, OUTPUT);
  pinMode(echo, INPUT);
  // Specify the LCD's number of columns and rows. Change to (20, 4) for a 20x4 LCD:
  lcd.begin(16, 2);
 
+ // IR receiver setup
  irrecv.enableIRIn();
 
+ // Fingerprint scanner test
  while (!Serial);  // For Yun/Leo/Micro/Zero/...
   delay(100);
   Serial.println("\n\nAdafruit finger detect test");
@@ -66,49 +77,29 @@ void setup() {
     lcd.setCursor(2,1);
     lcd.print("valid finger...");
     Serial.println("Waiting for valid finger...");
-      Serial.print("Sensor contains "); Serial.print(finger.templateCount); Serial.println(" templates");
+    Serial.print("Sensor contains "); Serial.print(finger.templateCount); Serial.println(" templates");
   }
-}
 
-
-void calculate_distance(int trigger, int echo) 
-{
-  digitalWrite(trigger, LOW);
-  delay(10);
-  digitalWrite(trigger, HIGH);
-  delay(10);
-  digitalWrite(trigger, LOW);
-  
-  time_taken = pulseIn(echo, HIGH);
-  dist= (time_taken/29)/2;  // (in centimeter) this is a formula get from the internet. 
-  //the basic idea is that we take the time the wave travels and multiple with the speed of sound (or divide by 29), 
-  //then divide by 2 because the wave travels to and from the sensor.
-}
-
-//get fingerprint status function
-int getFingerprintID() {
-  uint8_t p = finger.getImage();
-  if (p != FINGERPRINT_OK)  return -1;
-
-  p = finger.image2Tz();
-  if (p != FINGERPRINT_OK)  return -1;
-
-  p = finger.fingerFastSearch();
-  if (p != FINGERPRINT_OK)  return -1;
-  
-  // found a match!
-  Serial.print("Found ID #"); 
-  Serial.print(finger.fingerID); 
-  Serial.print(" with confidence of "); 
-  Serial.println(finger.confidence);
-  return finger.fingerID; 
+  // joystick set up
+  pinMode(jButton, INPUT);
 }
 
 void loop()                     // run over and over again
 {
  fingerprintID = getFingerprintID();
  delay(50);  //don't need to run this at full speed.
- if (fingerprintID != -1) {
+
+ // return fingerprint doesn't match if the fingerprint is not enrolled
+ if (fingerprintID == -2) {
+  lcd.clear();
+  lcd.print("Fingerprint");
+  lcd.setCursor(2,1);
+  lcd.print("doesn't match");
+  delay(1000);
+  lcd.clear();
+ }
+ 
+ if (fingerprintID != -1 and fingerprintID != -2) {
   fingerprintCheck += 1;
  }
 
@@ -138,9 +129,11 @@ void loop()                     // run over and over again
     lcd.setCursor(2, 1);
   // Print the string 'ON':
     lcd.print("ON");
+    delay(1000);
     counter1 = 2;
   }
-  
+
+  // enabling the sensor for playing and pausing
   if (counter1 == 2){
     if ((distance >2) && (distance <20)){
       //if your hand is in the range between 2cm and 20cm from the sensor, play/pause will be written into Serial
@@ -165,7 +158,7 @@ void loop()                     // run over and over again
   // read the input of the remote controller
   if (irrecv.decode(&results)){
 
-        if (results.value == 0xFFA25D){
+        if ((results.value == 0xFFA25D) or (results.value == 0xFFE21D)){
           counter1 += 1;
         }
  
@@ -182,7 +175,7 @@ void loop()                     // run over and over again
           lcd.clear();
           break;
           case 0xFFE21D:
-          lcd.print("CH+");
+          lcd.print("");
           break;
           case 0xFF22DD:
           lcd.print("Previous");
@@ -211,49 +204,52 @@ void loop()                     // run over and over again
           delay(400);
           lcd.clear();
           break ;  
-          case 0xFF906F:
-          lcd.print("EQ");
-          break ;  
-          case 0xFF6897:
-          lcd.print("0");
-          break ;  
-          case 0xFF9867:
-          lcd.print("100+");
-          break ;
-          case 0xFFB04F:
-          lcd.print("200+");
-          break ;
-          case 0xFF30CF:
-          lcd.print("1");
-          break ;
-          case 0xFF18E7:
-          lcd.print("2");
-          break ;
-          case 0xFF7A85:
-          lcd.print("3");
-          break ;
-          case 0xFF10EF:
-          lcd.print("4");
-          break ;
-          case 0xFF38C7:
-          lcd.print("5");
-          break ;
-          case 0xFF5AA5:
-          lcd.print("6");
-          break ;
-          case 0xFF42BD:
-          lcd.print("7");
-          break ;
-          case 0xFF4AB5:
-          lcd.print("8");
-          break ;
-          case 0xFF52AD:
-          lcd.print("9");
-          break ;                   
         }
         key_value = results.value;
         irrecv.resume(); 
+    
   }
+  xValue = floor((analogRead(joyX)-500)/100);
+  yValue = floor((analogRead(joyY)-500)/100);
+  if( xValue > 0 && xVol <= millis()-400/xValue ) {
+    Serial.println(150+int(xValue)); //change the python code to receive '15' as the case for volume up
+    xVol = millis();
+  } else if( xValue < 0 && xVol <= millis()+400/xValue ) {
+    Serial.println(140-int(xValue)); //change the python code to receive '14' as the case for volume down
+    xVol = millis();
+  }
+
+  for(i=0 ; i<2 ; i++) {
+    if(xValue*pow(-1,i) > 0 && joyReleased[i]) {
+      joyReleased[i] = false;
+    } else if(xValue*pow(-1,i) == 0 && joyReleased[i] == false) {
+      joyReleased[i] = true;
+      if(i == 0) { 
+        Serial.println("Prev Track"); lcd.print("Prev"); delay(400); lcd.clear();}
+      if(i == 1) { 
+        Serial.println("Next Track"); lcd.print("Next"); delay(400); lcd.clear();}
+    }
+  }
+
+  for(i=0 ; i<2 ; i++) {
+    if(yValue*pow(-1,i) > 0 && joyReleased[i]) {
+      joyReleased[i] = false;
+    } else if(yValue*pow(-1,i) == 0 && joyReleased[i] == false) {
+      joyReleased[i] = true;
+      if(i == 0) { 
+        Serial.println("Volume Down"); lcd.print("Volume down"); delay(400); lcd.clear();}
+      if(i == 1) { 
+        Serial.println("Volume Up"); lcd.print("Volume up");delay(400); lcd.clear();}
+    }
+  }
+  
+  /*if(not digitalRead(jButton) && joyReleased[2]) {
+    joyReleased[2] = false;
+  } else if(not digitalRead(jButton) && joyReleased[2] == false) {
+    joyReleased[2] = true;
+    Serial.println("Play/Pause"); 
+  } 
+  */
  }
 
  // print out goodbye message on the lcd
@@ -264,4 +260,37 @@ void loop()                     // run over and over again
   lcd.clear();
   fingerprintCheck = 0;
  }
+}
+
+void calculate_distance(int trigger, int echo) 
+{
+  digitalWrite(trigger, LOW);
+  delay(10);
+  digitalWrite(trigger, HIGH);
+  delay(10);
+  digitalWrite(trigger, LOW);
+  
+  time_taken = pulseIn(echo, HIGH);
+  dist= (time_taken/29)/2;  // (in centimeter) this is a formula get from the internet. 
+  //the basic idea is that we take the time the wave travels and multiple with the speed of sound (or divide by 29), 
+  //then divide by 2 because the wave travels to and from the sensor.
+}
+
+//get fingerprint status function
+int getFingerprintID() {
+  uint8_t p = finger.getImage();
+  if (p != FINGERPRINT_OK)  return -1;
+
+  p = finger.image2Tz();
+  if (p != FINGERPRINT_OK)  return -2;
+
+  p = finger.fingerFastSearch();
+  if (p != FINGERPRINT_OK)  return -2;
+  
+  // found a match!
+  Serial.print("Found ID #"); 
+  Serial.print(finger.fingerID); 
+  Serial.print(" with confidence of "); 
+  Serial.println(finger.confidence);
+  return finger.fingerID; 
 }
